@@ -97,17 +97,26 @@ def combine_parts(dest_path, parts):
 
 def worker_main(task: Dict[str, Any], control_flags, state_file: str):
     """Download a single task. task is dict with url, filename, id, sha256(optional), headers(optional)"""
-    task_id = task.get('id')
+    # Normalize and validate inputs early to avoid downstream mypy/None errors
+    task_id = str(task.get('id') or "")
     url = task.get('url')
-    filename = task.get('filename') or os.path.basename(url.split('?',1)[0])
-    outdir = task.get('outdir') or 'models'
+    if not isinstance(url, str) or not url:
+        # mark failed and persist
+        task['status'] = 'failed'
+        try:
+            save_state(state_file, task_id or "unknown", task)
+        except Exception:
+            pass
+        return
+    filename = task.get('filename') or os.path.basename(str(url).split('?', 1)[0])
+    outdir = str(task.get('outdir') or 'models')
     os.makedirs(outdir, exist_ok=True)
     dest_path = os.path.join(outdir, filename)
     temp_dir = os.path.join(outdir, PART_DIR, task_id)
     os.makedirs(temp_dir, exist_ok=True)
     headers = task.get('headers') or {}
     expected_sha = task.get('sha256')
-    per_file_workers = int(task.get('parts', 8))
+    per_file_workers = int(task.get('parts') or 8)
 
     # get head
     r = http_head(url, headers=headers)
@@ -139,7 +148,8 @@ def worker_main(task: Dict[str, Any], control_flags, state_file: str):
         try:
             with requests.get(url, headers=headers2, stream=True) as resp:
                 mode = 'ab' if existing else 'wb'
-                with open(dest_path + '.part', mode) as f:
+                # use fh as file-handle name to avoid reuse conflicts with futures
+                with open(dest_path + '.part', mode) as fh:
                     for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
                         if control_flags.get(task_id, {}).get('cancel'):
                             return
@@ -149,7 +159,7 @@ def worker_main(task: Dict[str, Any], control_flags, state_file: str):
                             save_state(state_file, task_id, task)
                             return
                         if chunk:
-                            f.write(chunk)
+                            fh.write(chunk)
             os.replace(dest_path + '.part', dest_path)
             if expected_sha:
                 if sha256_of_file(dest_path) != expected_sha.lower():
@@ -166,7 +176,7 @@ def worker_main(task: Dict[str, Any], control_flags, state_file: str):
             return
 
     # multi-range strategy
-    part_size = math.ceil(total_size / per_file_workers)
+    part_size = math.ceil(total_size / (per_file_workers or 1))
     parts = []
     futures = []
     with ThreadPoolExecutor(max_workers=per_file_workers) as ex:
@@ -178,9 +188,9 @@ def worker_main(task: Dict[str, Any], control_flags, state_file: str):
             # if existing part size equals expected, skip
             # submit download
             futures.append(ex.submit(download_range, url, headers, start, end, part_path, control_flags, task_id, i))
-        # wait
-        for f in as_completed(futures):
-            ok = f.result()
+        # wait: use 'future' as variable name to avoid name shadowing of file handles
+        for future in as_completed(futures):
+            ok = future.result()
             if not ok:
                 task['status'] = 'failed'
                 save_state(state_file, task_id, task)

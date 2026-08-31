@@ -38,7 +38,8 @@ class TaskManager:
         self.control_flags = self.manager.dict()
         # processes: local mapping task_id -> Process
         self.processes: Dict[str, Process] = {}
-        self.state = {"tasks": {}}
+        # explicit type annotation to satisfy mypy and make state shape clear
+        self.state: Dict[str, Any] = {"tasks": {}}
         self._load_state()
 
     def _load_state(self):
