@@ -1,0 +1,20 @@
+# manifest.json
+[
+  {
+    "id": "hf-example",
+    "name": "gpt2-small-example",
+    "url": "https://huggingface.co/gpt2/resolve/main/pytorch_model.bin",
+    "filename": "gpt2-pytorch_model.bin",
+    "parts": 8,
+    "headers": {
+      "Authorization": "Bearer YOUR_HF_TOKEN"
+    }
+  },
+  {
+    "id": "s3-example",
+    "name": "s3-example",
+    "url": "https://your-bucket.s3.amazonaws.com/model.tar.gz",
+    "filename": "model-s3.tar.gz",
+    "parts": 8
+  }
+]

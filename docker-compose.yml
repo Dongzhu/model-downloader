@@ -1,0 +1,13 @@
+# Docker compose for Redis (optional). Save as docker-compose.yml
+version: '3.7'
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+volumes:
+  redis-data:

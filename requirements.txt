@@ -1,0 +1,10 @@
+# requirements.txt
+requests
+tqdm
+prompt_toolkit
+flask
+huggingface_hub
+keyring
+redis
+pyzmq
+pytest
